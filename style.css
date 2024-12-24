@@ -24,14 +24,24 @@ body {
   pointer-events: none;
   color: #ffffff !important;
 }
-.xmas {
+/* .xmas {
   position: fixed;
   top: 80%;
   left: 33%;
   font-family: "Alex Brush", serif;
   font-size: 200%;
   color: #ffd700;
+} */
+.xmas {
+  position: fixed;
+  top: 80%; /* Keep the same vertical position */
+  left: 50%; /* Center horizontally */
+  transform: translateX(-50%); /* Offset to perfectly center the element */
+  font-family: "Alex Brush", serif;
+  font-size: 2rem;
+  color: #ffd700;
 }
+
 .names {
   position: fixed;
   top: 95%;
@@ -40,4 +50,10 @@ body {
   font-size: 90%;
   color: white;
   font-weight: bold;
+}
+
+@media screen and (max-width: 480px) {
+  .xmas {
+    font-size: 1.2rem; /* Further adjust font size for very small screens */
+  }
 }
