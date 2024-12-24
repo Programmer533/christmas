@@ -54,6 +54,7 @@ body {
 
 @media screen and (max-width: 480px) {
   .xmas {
-    font-size: 1.2rem; /* Further adjust font size for very small screens */
+    font-size: 1.3rem; /* Further adjust font size for very small screens */
+    text-align: center;
   }
 }
