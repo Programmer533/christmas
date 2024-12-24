@@ -22,7 +22,7 @@ body {
   font-family: "Times New Roman", Times, serif;
   user-select: none;
   pointer-events: none;
-  color: #ffffff;
+  color: #ffffff !important;
 }
 .xmas {
   position: fixed;
