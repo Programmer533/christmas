@@ -1,12 +1,12 @@
-import * as THREE from 'three';
+import * as THREE from "three";
 
 const containerEl = document.querySelector(".container");
 const canvasEl = document.querySelector("#tree-canvas");
 
 const params = {
-    stripesNumber: 15,
-    stripeWidth: .03,
-}
+  stripesNumber: 15,
+  stripeWidth: 0.03,
+};
 
 const pointer = new THREE.Vector2();
 
@@ -18,83 +18,113 @@ const balls = [];
 initScene();
 render();
 window.addEventListener("resize", updateSceneSize);
-window.addEventListener("click", e => {
-    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
-    pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(pointer, camera);
-    const intersects = raycaster.intersectObject(touchPlane);
-    if (intersects) {
-        addBall(intersects[0].point, balls.length - 1, performance.now());
-    }
-});
+// window.addEventListener("click", e => {
+//     pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+//     pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+//     raycaster.setFromCamera(pointer, camera);
+//     const intersects = raycaster.intersectObject(touchPlane);
+//     if (intersects) {
+//         addBall(intersects[0].point, balls.length - 1, performance.now());
+//     }
+// });
+// Unified handler for both click and touch events
+const handleInteraction = (event) => {
+  const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+  const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+
+  pointer.x = (clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(pointer, camera);
+  const intersects = raycaster.intersectObject(touchPlane);
+  if (intersects.length > 0) {
+    addBall(intersects[0].point, balls.length - 1, performance.now());
+  }
+};
+
+// Attach event listeners for both mouse clicks and touch events
+window.addEventListener("click", handleInteraction);
+window.addEventListener("touchstart", handleInteraction);
 
 function initScene() {
-    renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        canvas: canvasEl,
-        alpha: true
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    canvas: canvasEl,
+    alpha: true,
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(
+    45,
+    containerEl.clientWidth / containerEl.clientHeight,
+    0.1,
+    10
+  );
+  camera.position.set(0, 1, 4);
+  camera.lookAt(0, 0, 0);
+
+  raycaster = new THREE.Raycaster();
+
+  updateSceneSize();
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 2.5);
+  scene.add(ambientLight);
+  const sideLight = new THREE.DirectionalLight(0xffffff, 1);
+  sideLight.position.set(1, 2, 4);
+  sideLight.castShadow = true;
+  sideLight.shadow.mapSize.width = 2048;
+  sideLight.shadow.mapSize.height = 2048;
+  sideLight.shadow.camera.near = 3;
+  sideLight.shadow.camera.far = 8;
+  sideLight.shadow.camera.left = -1;
+  sideLight.shadow.camera.right = 1;
+  sideLight.shadow.camera.top = 1;
+  sideLight.shadow.camera.bottom = -1;
+  sideLight.shadow.bias = -0.0001;
+  sideLight.shadow.radius = 6;
+  sideLight.shadow.normalBias = 0.02;
+
+  lightHolder = new THREE.Group();
+  lightHolder.add(sideLight);
+  scene.add(lightHolder);
+
+  const leftLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  leftLight.position.set(-2, 0, 0);
+  scene.add(leftLight);
+
+  stripeGeometry = new THREE.CylinderGeometry(
+    1,
+    1,
+    params.stripeWidth,
+    128,
+    32,
+    true
+  );
+  ballGeometry = new THREE.IcosahedronGeometry(0.06, 16);
+
+  for (let i = 0; i < params.stripesNumber; i++) {
+    const material = new THREE.MeshStandardMaterial({
+      color: new THREE.Color().setHSL(0.3, 1, 0.5),
+      roughness: 0.3,
+      metalness: 0.8,
+      side: THREE.DoubleSide,
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
 
-    scene = new THREE.Scene();
+    material.userData.time = { value: 0 };
+    material.userData.stripeIdx = { value: i };
+    material.userData.stripeHeight = { value: 1 / params.stripesNumber };
+    material.userData.Height = { value: 1 / params.stripesNumber };
 
-    camera = new THREE.PerspectiveCamera(45, containerEl.clientWidth / containerEl.clientHeight, .1, 10);
-    camera.position.set(0, 1, 4);
-	 camera.lookAt(0, 0, 0);
+    const obc = (shader) => {
+      shader.uniforms.u_time = material.userData.time;
+      shader.uniforms.u_stripe_idx = material.userData.stripeIdx;
+      shader.uniforms.u_stripe_height = material.userData.stripeHeight;
 
-    raycaster = new THREE.Raycaster();
-
-    updateSceneSize();
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 2.5);
-    scene.add(ambientLight);
-    const sideLight = new THREE.DirectionalLight(0xffffff, 1);
-    sideLight.position.set(1, 2, 4);
-    sideLight.castShadow = true;
-    sideLight.shadow.mapSize.width = 2048;
-    sideLight.shadow.mapSize.height = 2048;
-    sideLight.shadow.camera.near = 3;
-    sideLight.shadow.camera.far = 8;
-    sideLight.shadow.camera.left = -1;
-    sideLight.shadow.camera.right = 1;
-    sideLight.shadow.camera.top = 1;
-    sideLight.shadow.camera.bottom = -1;
-    sideLight.shadow.bias = -.0001;
-    sideLight.shadow.radius = 6;
-    sideLight.shadow.normalBias = 0.02;
-
-    lightHolder = new THREE.Group();
-    lightHolder.add(sideLight);
-    scene.add(lightHolder);
-
-    const leftLight = new THREE.DirectionalLight(0xffffff, .5);
-    leftLight.position.set(-2, 0, 0);
-    scene.add(leftLight);
-
-
-    stripeGeometry = new THREE.CylinderGeometry(1, 1, params.stripeWidth, 128, 32, true);
-    ballGeometry = new THREE.IcosahedronGeometry(.06, 16);
-
-    for (let i = 0; i < params.stripesNumber; i++) {
-        const material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color().setHSL(.3, 1, .5),
-            roughness: .3,
-            metalness: .8,
-            side: THREE.DoubleSide
-        })
-
-        material.userData.time = {value: 0};
-        material.userData.stripeIdx = {value: i};
-        material.userData.stripeHeight = {value: 1 / params.stripesNumber};
-        material.userData.Height = {value: 1 / params.stripesNumber};
-
-        const obc = (shader) => {
-            shader.uniforms.u_time = material.userData.time;
-            shader.uniforms.u_stripe_idx = material.userData.stripeIdx;
-            shader.uniforms.u_stripe_height = material.userData.stripeHeight;
-
-            shader.vertexShader = `
+      shader.vertexShader =
+        `
                     #define TWO_PI 6.28318530718
 
                         uniform float u_time;
@@ -156,9 +186,9 @@ function initScene() {
                         }
                     ` + shader.vertexShader;
 
-            shader.vertexShader = shader.vertexShader.replace(
-                'void main() {',
-                `
+      shader.vertexShader = shader.vertexShader.replace(
+        "void main() {",
+        `
                     void main() {
                           vec3 displacedPosition = displacement(position);
                           vec3 displacedNormal = normalize(normal);
@@ -175,107 +205,104 @@ function initScene() {
                           vec3 displacedBitangent = displacedNeighbour2 - displacedPosition;
                           displacedNormal = normalize(cross(displacedTangent, displacedBitangent));
                     `
-            );
+      );
 
-            shader.vertexShader = shader.vertexShader.replace(
-                '#include <displacementmap_vertex>',
-                `transformed = displacedPosition;`
-            );
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <displacementmap_vertex>",
+        `transformed = displacedPosition;`
+      );
 
-            shader.vertexShader = shader.vertexShader.replace(
-                '#include <defaultnormal_vertex>',
-                THREE.ShaderChunk.defaultnormal_vertex.replace(
-                    'vec3 transformedNormal = objectNormal;',
-                    `vec3 transformedNormal = displacedNormal;`
-                )
-            );
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <defaultnormal_vertex>",
+        THREE.ShaderChunk.defaultnormal_vertex.replace(
+          "vec3 transformedNormal = objectNormal;",
+          `vec3 transformedNormal = displacedNormal;`
+        )
+      );
 
-            shader.fragmentShader = shader.fragmentShader.replace(
-                `<colorspace_fragment>`,
-                `<colorspace_fragment>
+      shader.fragmentShader = shader.fragmentShader.replace(
+        `<colorspace_fragment>`,
+        `<colorspace_fragment>
                     if (!gl_FrontFacing) {
                         gl_FragColor.rgb *= .6; gl_FragColor.b += .2;
                     }
                     `
-            );
-        }
+      );
+    };
 
-        material.onBeforeCompile = obc;
-        const stripe = new THREE.Mesh(stripeGeometry, material);
-        stripe.receiveShadow = true;
+    material.onBeforeCompile = obc;
+    const stripe = new THREE.Mesh(stripeGeometry, material);
+    stripe.receiveShadow = true;
 
-        stripe.customDepthMaterial = new THREE.MeshDepthMaterial({
-            depthPacking: THREE.RGBADepthPacking
-        });
-        stripe.customDepthMaterial.onBeforeCompile = obc;
-
-        stripes.push(stripe);
-        scene.add(stripe);
-    }
-
-
-    const touchPlaneGeometry = new THREE.PlaneGeometry(100, 100);
-    const touchPlaneMaterial = new THREE.MeshBasicMaterial({
-        color: 0x880000,
-        visible: false
+    stripe.customDepthMaterial = new THREE.MeshDepthMaterial({
+      depthPacking: THREE.RGBADepthPacking,
     });
-    touchPlane = new THREE.Mesh(touchPlaneGeometry, touchPlaneMaterial);
-    touchPlane.rotateZ(-.5 * Math.PI);
-    scene.add(touchPlane);
+    stripe.customDepthMaterial.onBeforeCompile = obc;
+
+    stripes.push(stripe);
+    scene.add(stripe);
+  }
+
+  const touchPlaneGeometry = new THREE.PlaneGeometry(100, 100);
+  const touchPlaneMaterial = new THREE.MeshBasicMaterial({
+    color: 0x880000,
+    visible: false,
+  });
+  touchPlane = new THREE.Mesh(touchPlaneGeometry, touchPlaneMaterial);
+  touchPlane.rotateZ(-0.5 * Math.PI);
+  scene.add(touchPlane);
 }
 
 function addBall(pos, bIdx, clickTime) {
-    const material = new THREE.MeshStandardMaterial({
-        color: new THREE.Color().setHSL(.4 * (bIdx % 4 - 1) - .6, .9, .5),
-        roughness: .2,
-        metalness: .5,
-    })
-    const ballWrapper = new THREE.Group();
-    const ball = new THREE.Mesh(ballGeometry, material);
-    ball.castShadow = true;
-    ball.receiveShadow = true;
+  const material = new THREE.MeshStandardMaterial({
+    color: new THREE.Color().setHSL(0.4 * ((bIdx % 4) - 1) - 0.6, 0.9, 0.5),
+    roughness: 0.2,
+    metalness: 0.5,
+  });
+  const ballWrapper = new THREE.Group();
+  const ball = new THREE.Mesh(ballGeometry, material);
+  ball.castShadow = true;
+  ball.receiveShadow = true;
 
-    const scale = .6 + Math.max(.1, (.5 - .02 * bIdx)) * Math.random();
-    ball.scale.set(scale, scale, scale);
-    ball.position.copy(pos);
+  const scale = 0.6 + Math.max(0.1, 0.5 - 0.02 * bIdx) * Math.random();
+  ball.scale.set(scale, scale, scale);
+  ball.position.copy(pos);
 
-    balls.push({ball, ballWrapper, pos, clickTime});
-    ballWrapper.add(ball);
-    scene.add(ballWrapper);
+  balls.push({ ball, ballWrapper, pos, clickTime });
+  ballWrapper.add(ball);
+  scene.add(ballWrapper);
 }
 
 function hash(x) {
-    return Math.sin(x * 123456.789) * 10000 % 1;
+  return (Math.sin(x * 123456.789) * 10000) % 1;
 }
 
 function render(time) {
+  const t = 0.001 * time;
+  lightHolder.quaternion.copy(camera.quaternion);
 
-    const t = .001 * time;
-    lightHolder.quaternion.copy(camera.quaternion);
+  stripes.forEach((s) => {
+    s.material.userData.time.value = t;
+  });
 
-    stripes.forEach(s => {
-        s.material.userData.time.value = t;
-    })
-
-    balls.forEach((b, bIdx) => {
-        const aT = .001 * (time - b.clickTime);
-        const posY = .1 * (5 - Math.abs(5 - (bIdx % (2 * 5)))) - .3;
-        const posZ = .5 * (posY - .5) - .3;
-        const posTarget = new THREE.Vector3(0, posY, posZ);
-        b.ball.position.copy(b.pos.clone().lerp(posTarget, Math.min(aT, 1)));
-        const rotTarget = new THREE.Vector2(
-            .4 * Math.sin(2. * aT),
-            (b.pos.x > 0 ? 1 : -1) * 2 * aT
-        );
-        b.ballWrapper.rotation.set(rotTarget.x, rotTarget.y, 0);
-
-    });
-    renderer.render(scene, camera);
-    requestAnimationFrame(render);
+  balls.forEach((b, bIdx) => {
+    const aT = 0.001 * (time - b.clickTime);
+    const posY = 0.1 * (5 - Math.abs(5 - (bIdx % (2 * 5)))) - 0.3;
+    const posZ = 0.5 * (posY - 0.5) - 0.3;
+    const posTarget = new THREE.Vector3(0, posY, posZ);
+    b.ball.position.copy(b.pos.clone().lerp(posTarget, Math.min(aT, 1)));
+    const rotTarget = new THREE.Vector2(
+      0.4 * Math.sin(2 * aT),
+      (b.pos.x > 0 ? 1 : -1) * 2 * aT
+    );
+    b.ballWrapper.rotation.set(rotTarget.x, rotTarget.y, 0);
+  });
+  renderer.render(scene, camera);
+  requestAnimationFrame(render);
 }
 
 function updateSceneSize() {
-    camera.aspect = containerEl.clientWidth / containerEl.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(containerEl.clientWidth, containerEl.clientHeight);
+  camera.aspect = containerEl.clientWidth / containerEl.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(containerEl.clientWidth, containerEl.clientHeight);
 }
